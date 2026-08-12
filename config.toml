@@ -1,0 +1,31 @@
+poll_interval_seconds = 5
+
+[[games]]
+name = "Rocket League"
+application_id = "356877880938070016"
+process_names = ["RocketLeague.exe"]
+
+[[games]]
+name = "Big Walk"
+application_id = "1535497936258076854"
+process_names = ["Big Walk.exe"]
+
+[[games]]
+name = "Clair Obscur: Expedition 33"
+application_id = "1364888648839073802"
+process_names = ["SandFall-Win64-Shipping.exe"]
+
+[[games]]
+name = "Far Far West"
+application_id = "1437603706886426675"
+process_names = ["FarFarWest-Win64-Shipping.exe"]
+
+[[games]]
+name = "Tabletop Simulator"
+application_id = "363408834095742976"
+process_names = ["Tabletop Simulator.x86_64"]
+
+[[games]]
+name = "Windrose"
+application_id = "1440133627899023452"
+process_names = ["Windrose-Win64-Shipping.exe"]

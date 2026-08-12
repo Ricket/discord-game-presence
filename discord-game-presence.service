@@ -1,0 +1,20 @@
+[Unit]
+Description=Privacy-preserving Discord game presence monitor
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/discord-game-presence
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictAddressFamilies=AF_UNIX
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target
