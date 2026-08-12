@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """Privacy-preserving fallback Discord game presence monitor."""
 from __future__ import annotations
-import argparse, json, os, re, selectors, signal, socket, struct, subprocess, sys, time, tomllib, uuid
+import argparse, json, os, re, socket, struct, subprocess, sys, time, tomllib, uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-APP="discord-game-presence"; MAX=16*1024*1024
+APP="discord-game-presence"; MAX=16*1024*1024; ACTIVE_CHECK_SECONDS=15
 @dataclass(frozen=True)
 class Game:
     name:str; application_id:str; process_names:tuple[str,...]
 @dataclass(frozen=True)
 class Config:
-    poll:float; games:tuple[Game,...]
+    poll:float; games:tuple[Game,...]; names:dict[str,tuple[int,...]]; truncated:frozenset[str]
 
 def load_config(path:Path)->Config:
     with path.open("rb") as f: raw=tomllib.load(f)
-    poll=float(raw.get("poll_interval_seconds",5))
+    poll=float(raw.get("poll_interval_seconds",60))
     if not 1 <= poll <= 300: raise ValueError("poll_interval_seconds must be between 1 and 300")
     games=[]
     for i,g in enumerate(raw.get("games",[]),1):
@@ -23,18 +23,38 @@ def load_config(path:Path)->Config:
         if not g.get("name") or not aid.isdigit() or not names: raise ValueError(f"invalid games entry {i}")
         games.append(Game(str(g["name"]),aid,names))
     if not games: raise ValueError("at least one [[games]] entry is required")
-    return Config(poll,tuple(games))
+    lookup={}
+    for i,g in enumerate(games):
+        for name in g.process_names:lookup.setdefault(name,[]).append(i)
+    names={name:tuple(indices) for name,indices in lookup.items()}
+    return Config(poll,tuple(games),names,frozenset(name[:15] for name in names if len(name)>15))
 
-def proc_start(pid:int)->int:
-    fields=Path(f"/proc/{pid}/stat").read_text().rsplit(") ",1)[1].split()
-    ticks=int(fields[19]); boot=int(Path("/proc/stat").read_text().split("btime ",1)[1].splitlines()[0])
-    return boot + ticks//os.sysconf("SC_CLK_TCK")
+def proc_start_ticks(pid:int,proc:Path=Path("/proc"))->int:
+    fields=(proc/str(pid)/"stat").read_text().rsplit(") ",1)[1].split()
+    return int(fields[19])
+def proc_clock(proc:Path=Path("/proc"))->tuple[int,int]:
+    boot=int((proc/"stat").read_text().split("btime ",1)[1].splitlines()[0])
+    return boot,os.sysconf("SC_CLK_TCK")
+def proc_start_time(ticks:int,clock:tuple[int,int])->int:
+    boot,ticks_per_second=clock
+    return boot + ticks//ticks_per_second
 def process_basenames(comm:str,cmdline:bytes)->set[str]:
     argv=[x.decode(errors="replace") for x in cmdline.split(b"\0") if x]
     return {comm.strip().casefold()}|{x.replace("\\","/").rsplit("/",1)[-1].casefold() for x in argv}
-def detect(config:Config):
+def candidate_indices(config:Config,comm:str,cmdline:bytes|None=None)->set[int]:
+    base=comm.strip().casefold(); found=set(config.names.get(base,()))
+    # Linux comm is limited to 15 bytes. Read argv only when comm could be a
+    # truncated configured basename; this retains Wine/Proton matching without
+    # decoding every process command line.
+    plausible=base in config.truncated
+    if cmdline is not None:
+        for name in process_basenames(comm,cmdline):found.update(config.names.get(name,()))
+    elif plausible:
+        return {-1}|found
+    return found
+def detect(config:Config,proc:Path=Path("/proc"),clock:tuple[int,int]|None=None):
     found={}
-    for p in Path("/proc").iterdir():
+    for p in proc.iterdir():
         if not p.name.isdigit(): continue
         try:
             comm=(p/"comm").read_text()
@@ -42,13 +62,22 @@ def detect(config:Config):
             # S:\\steamapps\\...\\RocketLeague.exe), which pathlib on Linux does
             # not recognize as paths. Normalize both separator styles while
             # preserving spaces inside a native executable's argv[0].
-            bases=process_basenames(comm,(p/"cmdline").read_bytes())
-            for g in config.games:
-                if any(n in bases for n in g.process_names): found.setdefault(g,(int(p.name),proc_start(int(p.name))))
+            indices=candidate_indices(config,comm)
+            if -1 in indices:
+                indices=candidate_indices(config,comm,(p/"cmdline").read_bytes())
+            for i in indices:
+                ticks=proc_start_ticks(int(p.name),proc)
+                found.setdefault(i,(int(p.name),ticks))
+                if i==0:return config.games[0],int(p.name),ticks,proc_start_time(ticks,clock or proc_clock(proc))
         except (FileNotFoundError,PermissionError,ProcessLookupError,ValueError): pass
-    for g in config.games:
-        if g in found:return g,*found[g]
+    if found:
+        i=min(found);pid,ticks=found[i]
+        return config.games[i],pid,ticks,proc_start_time(ticks,clock or proc_clock(proc))
     return None
+
+def process_is_same(pid:int,start_ticks:int,proc:Path=Path("/proc"))->bool:
+    try:return proc_start_ticks(pid,proc)==start_ticks
+    except (FileNotFoundError,PermissionError,ProcessLookupError,ValueError):return False
 
 def frame(op:int,data:dict)->bytes:
     b=json.dumps(data,separators=(",",":")).encode(); return struct.pack("<II",op,len(b))+b
@@ -119,16 +148,28 @@ def log(msg):print(msg,flush=True)
 def run(config_path:Path,once=False):
     runtime=Path(os.getenv("XDG_RUNTIME_DIR",f"/run/user/{os.getuid()}")); sock=runtime/"discord-ipc-0"
     dlog=Path.home()/".var/app/com.discordapp.Discord/config/discord/logs/renderer_js.log"
-    cfg=load_config(config_path);mtime=config_path.stat().st_mtime_ns; rpc=Rpc();arb=LogArbiter(dlog);notified=False;current=None
+    cfg=load_config(config_path);mtime=config_path.stat().st_mtime_ns;clock=proc_clock();rpc=Rpc();arb=LogArbiter(dlog);notified=False;current=None
+    next_full_scan=0.0;next_active_check=0.0
     try:
         while True:
             try:
                 nm=config_path.stat().st_mtime_ns
-                if nm!=mtime: cfg=load_config(config_path);mtime=nm;log("configuration reloaded")
+                if nm!=mtime:
+                    cfg=load_config(config_path);mtime=nm;next_full_scan=0.0;log("configuration reloaded")
             except Exception as e:
                 log(f"configuration reload failed; keeping previous configuration: {e}")
                 if not notified:notify(f"Configuration error: {e}. See journalctl --user -u {APP}.service");notified=True
-            game=detect(cfg)
+            now=time.monotonic()
+            if current and now<next_active_check:
+                game=current
+            elif current and process_is_same(current[1],current[2]):
+                game=current;next_active_check=now+ACTIVE_CHECK_SECONDS
+            else:
+                game=None;current=None;next_full_scan=0.0
+            if now>=next_full_scan:
+                game=detect(cfg,clock=clock);current=game
+                next_full_scan=now+cfg.poll
+                next_active_check=now+ACTIVE_CHECK_SECONDS
             try:
                 if not arb.valid:arb.initialize()
                 arb.update(rpc.aid)
@@ -140,7 +181,7 @@ def run(config_path:Path,once=False):
             if safe:
                 notified=False
                 if game and arb.external==0 and sock.exists():
-                    g,pid,start=game
+                    g,pid,ticks,start=game
                     try:
                         if rpc.aid!=g.application_id:
                             rpc.connect(sock,g.application_id);rpc.activity(start);log(f"published {g.name} (pid {pid})")
@@ -148,7 +189,7 @@ def run(config_path:Path,once=False):
                             # A normal activity refresh verifies the connection
                             # and restores presence after a Discord restart.
                             rpc.activity(start)
-                        current=g
+                        current=game
                     except Exception as e:rpc.close();log(f"Discord unavailable: {e}")
                 else:
                     if rpc.s:
@@ -157,7 +198,10 @@ def run(config_path:Path,once=False):
                         rpc.close();log("cleared fallback presence" if not arb.external else "yielding to external Rich Presence client")
                     current=None
             if once:return 0
-            time.sleep(cfg.poll)
+            now=time.monotonic()
+            deadlines=[next_full_scan]
+            if current:deadlines.append(next_active_check)
+            time.sleep(max(0.1,min(deadlines)-now))
     finally:
         if rpc.s:
             try:rpc.activity(None)

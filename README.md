@@ -25,6 +25,10 @@ Configuration lives at `~/.config/discord-game-presence/config.toml`. Add a
 or more exact executable basenames. Entries earlier in the file have priority.
 Changes reload automatically.
 
+`poll_interval_seconds` controls game discovery and priority-switch latency and
+defaults to 60 seconds. While a game is active, its individual process is
+checked every 15 seconds without rescanning the full process list.
+
 See [FINDING_APPLICATION_IDS.md](FINDING_APPLICATION_IDS.md) for the safe
 discovery, static-analysis, and validation workflow used to recover Rocket
 League's genuine Discord Application ID.
