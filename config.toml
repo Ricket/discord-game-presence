@@ -13,12 +13,12 @@ process_names = ["Big Walk.exe"]
 [[games]]
 name = "Clair Obscur: Expedition 33"
 application_id = "1364888648839073802"
-process_names = ["SandFall-Win64-Shipping.exe"]
+process_names = ["Expedition33_Steam.exe", "SandFall-Win64-Shipping.exe"]
 
 [[games]]
 name = "Far Far West"
 application_id = "1437603706886426675"
-process_names = ["FarFarWest-Win64-Shipping.exe"]
+process_names = ["FarFarWest.exe", "FarFarWest-Win64-Shipping.exe"]
 
 [[games]]
 name = "Tabletop Simulator"
@@ -28,4 +28,4 @@ process_names = ["Tabletop Simulator.x86_64"]
 [[games]]
 name = "Windrose"
 application_id = "1440133627899023452"
-process_names = ["Windrose-Win64-Shipping.exe"]
+process_names = ["Windrose.exe", "Windrose-Win64-Shipping.exe"]

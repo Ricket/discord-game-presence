@@ -29,6 +29,11 @@ Changes reload automatically.
 defaults to 60 seconds. While a game is active, its individual process is
 checked every 15 seconds without rescanning the full process list.
 
+Discord RPC is monitored through its Unix socket. The service responds to
+protocol PING frames, reconnects with bounded backoff after Discord restarts,
+and restores the active presence after reconnecting. Unchanged presence is
+refreshed every 10 minutes as a conservative end-to-end safety check.
+
 See [FINDING_APPLICATION_IDS.md](FINDING_APPLICATION_IDS.md) for the safe
 discovery, static-analysis, and validation workflow used to recover Rocket
 League's genuine Discord Application ID.
