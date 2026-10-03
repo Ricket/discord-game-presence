@@ -29,3 +29,33 @@ process_names = ["Tabletop Simulator.x86_64"]
 name = "Windrose"
 application_id = "1440133627899023452"
 process_names = ["Windrose.exe", "Windrose-Win64-Shipping.exe"]
+
+[[games]]
+name = "PEAK"
+application_id = "1384276457596911676"
+process_names = ["PEAK.exe"]
+
+[[games]]
+name = "Librarian: Tidy Up the Arcane Library!"
+application_id = "1501423633464164483"
+process_names = ["Librarian.exe", "Librarian-Win64-Shipping.exe"]
+
+[[games]]
+name = "How to Fish"
+application_id = "1542021058834468927"
+process_names = ["How to Fish.exe"]
+
+[[games]]
+name = "Golf With Your Friends"
+application_id = "356954034701205504"
+process_names = ["Golf With Your Friends.x86_64", "Golf With Your Friends.exe"]
+
+[[games]]
+name = "Half-Life: Alyx"
+application_id = "1124351756931977307"
+process_names = ["hlvr", "hlvr.exe"]
+
+[[games]]
+name = "Beat Saber"
+application_id = "451991967149195264"
+process_names = ["Beat Saber.exe"]

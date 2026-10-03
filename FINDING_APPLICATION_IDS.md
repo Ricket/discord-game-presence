@@ -247,6 +247,11 @@ journalctl --user -u discord-game-presence.service -f
 
 ## Record discoveries
 
+Keep this document as a reusable reference. Add confirmed IDs to the existing
+table and update general procedures as needed. Put investigation dates, build
+details, validation results, and session-specific limitations in commit messages
+or separate investigation notes.
+
 For each confirmed game, record the following in a commit or investigation
 note so a future session can reassess it:
 
@@ -257,16 +262,24 @@ note so a future session can reassess it:
 - Date and installed game version/build
 - Standalone validation result and displayed name/icon
 
-## Confirmed installed-game IDs
+## Known game application IDs
 
-Validated against Discord's detectable-game catalog and public RPC application
-endpoint on 2026-08-11/12:
+The following IDs match the games' Steam SKUs in Discord's detectable-game
+catalog and resolve to the expected names through the public RPC application
+endpoint. Executable basenames include native Linux and Windows variants where
+known. Use the basename for your installed version.
 
-| Game | Steam App ID | Discord Application ID | Executable basename |
+Catalog and endpoint checks establish application identity; use the standalone
+RPC validation procedure above to confirm in-client presence and artwork.
+
+| Game | Steam App ID | Discord Application ID | Executable basenames |
 | --- | ---: | ---: | --- |
+| Beat Saber | `620980` | `451991967149195264` | `Beat Saber.exe` |
 | Big Walk | `1478500` | `1535497936258076854` | `Big Walk.exe` |
 | Clair Obscur: Expedition 33 | `1903340` | `1364888648839073802` | `SandFall-Win64-Shipping.exe` |
 | Far Far West | `3124540` | `1437603706886426675` | `FarFarWest-Win64-Shipping.exe` |
+| Golf With Your Friends | `431240` | `356954034701205504` | `Golf With Your Friends.x86_64`, `Golf With Your Friends.exe` |
+| Half-Life: Alyx | `546560` | `1124351756931977307` | `hlvr`, `hlvr.exe` |
 | Rocket League | `252950` | `356877880938070016` | `RocketLeague.exe` |
 | Tabletop Simulator | `286160` | `363408834095742976` | `Tabletop Simulator.x86_64` |
 | Windrose | `3041230` | `1440133627899023452` | `Windrose-Win64-Shipping.exe` |
